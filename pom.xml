@@ -8,21 +8,14 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.zipkin.gcp</groupId>
-  <artifactId>zipkin-gcp-parent</artifactId>
+  <groupId>io.zipkin.splunk</groupId>
+  <artifactId>zipkin-splunk-parent</artifactId>
   <version>2.2.5-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
     <module>module</module>
-    <module>translation-stackdriver</module>
-    <module>encoder-stackdriver-brave</module>
-    <module>encoder-stackdriver-zipkin</module>
-    <module>sender-stackdriver</module>
-    <module>storage-stackdriver</module>
-    <module>propagation-stackdriver</module>
-    <module>sender-pubsub</module>
-    <module>collector-pubsub</module>
+    <module>storage-splunk</module>
   </modules>
 
   <distributionManagement>
@@ -60,6 +53,8 @@
     <maven.compiler.testSource>17</maven.compiler.testSource>
     <maven.compiler.testTarget>17</maven.compiler.testTarget>
     <maven.compiler.testRelease>17</maven.compiler.testRelease>
+
+    <splunk-sdk.version>1.6.5.0</splunk-sdk.version>
 
     <!-- groupId overrides allow testing feature branches with jitpack -->
     <!-- matching armeria/grpc/zipkin -->
@@ -116,7 +111,7 @@
     <maven-bundle-plugin.version>5.1.9</maven-bundle-plugin.version>
     <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
     <!-- Use same version as https://github.com/openzipkin/docker-java -->
-    <maven-dependency-plugin.version>3.6.1</maven-dependency-plugin.version>
+    <maven-dependency-plugin.version>3.6.0</maven-dependency-plugin.version>
     <maven-deploy-plugin.version>3.1.1</maven-deploy-plugin.version>
     <maven-enforcer-plugin.version>3.4.1</maven-enforcer-plugin.version>
     <!-- Use same version as https://github.com/openzipkin/docker-java -->
@@ -379,7 +374,7 @@
                 <requireJavaVersion>
                   <!-- Change this to control LTS JDK versions allowed to build
                        the project. Keep in sync with .github/workflows -->
-                  <version>[17,18),[21,22)</version>
+                  <version>[17,18),[18,19),[21,22)</version>
                 </requireJavaVersion>
               </rules>
             </configuration>
@@ -485,9 +480,6 @@
           <name>!skipTests</name>
         </property>
       </activation>
-      <modules>
-        <module>benchmarks</module>
-      </modules>
     </profile>
 
 

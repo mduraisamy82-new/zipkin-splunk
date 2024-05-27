@@ -8,13 +8,13 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>io.zipkin.gcp</groupId>
-    <artifactId>zipkin-gcp-parent</artifactId>
+    <groupId>io.zipkin.splunk</groupId>
+    <artifactId>zipkin-splunk-parent</artifactId>
     <version>2.2.5-SNAPSHOT</version>
   </parent>
 
-  <artifactId>zipkin-module-gcp</artifactId>
-  <name>Zipkin Server Module: GCP</name>
+  <artifactId>zipkin-module-splunk</artifactId>
+  <name>Zipkin Server Module: Splunk</name>
 
   <properties>
     <main.basedir>${project.basedir}/..</main.basedir>
@@ -28,7 +28,7 @@
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>zipkin-storage-stackdriver</artifactId>
+      <artifactId>zipkin-storage-splunk</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -36,22 +36,6 @@
       <artifactId>spring-boot-autoconfigure</artifactId>
       <version>${spring-boot.version}</version>
       <scope>provided</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>com.google.auth</groupId>
-      <artifactId>google-auth-library-oauth2-http</artifactId>
-      <version>${google-auth-library-oauth2-http.version}</version>
-    </dependency>
-    <!-- google-auth-library-oauth2-http strictly depends on...
-            google-http-java-client, which strictly depends on...
-               opencensus-api, which strictly depends on... grpc-context!
-         https://github.com/openzipkin/zipkin-gcp/issues/153
-      -->
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-context</artifactId>
-      <version>${grpc.version}</version>
     </dependency>
 
     <dependency>
@@ -72,43 +56,7 @@
       <version>${armeria.version}</version>
       <scope>test</scope>
     </dependency>
-    <dependency>
-      <groupId>com.google.api.grpc</groupId>
-      <artifactId>grpc-google-cloud-trace-v2</artifactId>
-      <version>${grpc-google-cloud-trace.version}</version>
-      <scope>test</scope>
-    </dependency>
     <!-- Stackdriver Trace read operations are only available in its v1 API. Use it to validate data was written during integration tests. -->
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-core</artifactId>
-      <version>${grpc.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-protobuf</artifactId>
-      <version>${grpc.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-auth</artifactId>
-      <version>${grpc.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-netty-shaded</artifactId>
-      <version>${grpc.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.google.api.grpc</groupId>
-      <artifactId>grpc-google-cloud-trace-v1</artifactId>
-      <version>${grpc-google-cloud-trace.version}</version>
-      <scope>test</scope>
-    </dependency>
     <dependency>
       <groupId>org.awaitility</groupId>
       <artifactId>awaitility</artifactId>
