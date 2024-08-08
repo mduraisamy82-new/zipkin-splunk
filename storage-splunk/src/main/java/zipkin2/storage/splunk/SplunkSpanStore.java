@@ -37,7 +37,36 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         this.storage = storage;
     }
 
-    @Override public Call<List<List<Span>>> getTraces(QueryRequest request) {
+    @Override public Call<List<String>> getServiceNames() {
+        LOG.debug("getServiceNames: {}");
+        final String query = "search * index=\"" + storage.indexName + "\" "
+                + " sourcetype=" + storage.sourceType + ""
+                + "| table localEndpoint.serviceName "
+                + "| dedup localEndpoint.serviceName";
+        return new GetNamesCall(storage, query, "localEndpoint.serviceName");
+    }
+
+    @Override public Call<List<String>> getRemoteServiceNames(String serviceName) {
+        LOG.debug("getRemoteServiceNames: {}");
+        final String query = "search * index=\"" + storage.indexName + "\" "
+                + "localEndpoint " + serviceName + " "
+                + "| table remoteEndpoint.serviceName "
+                + "| dedup remoteEndpoint.serviceName";
+        return new GetNamesCall(storage, query, "remoteEndpoint.serviceName");
+    }
+
+    @Override public Call<List<String>> getSpanNames(String serviceName) {
+        LOG.debug("getSpanNames: {}",serviceName);
+        final String query = "search * index=\"" + storage.indexName + "\" "
+                + "localEndpoint " + serviceName + " "
+                + "| table name "
+                + "| dedup name";
+        return new GetNamesCall(storage, query, "name");
+    }
+
+    @Override public Call<List<List<Span>>> getTraces(QueryRequest request)
+    {
+        LOG.debug("getTraces query: {}", request);
         String startQuery = "search * index=" + storage.indexName
                 + " sourcetype=" + storage.sourceType + ""
                 + " earliest=" + (request.lookback() / 1000) + ""
@@ -78,9 +107,22 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         }
         queryBuilder.append(endQuery);
         final String query = queryBuilder.toString();
-        LOG.debug("Splunk query: {}", query);
+        LOG.debug("getTraces query: {}", query);
         return new GetTracesCall(storage, query);
     }
+
+    @Override public Call<List<Span>> getTrace(String traceId) {
+        LOG.debug("getTrace: {}", traceId);
+        final String query = "search * index=\"" + storage.indexName + "\" "
+                + "sourcetype=\"" + storage.sourceType + "\" "
+                + "traceid " + traceId;
+        LOG.debug("getTrace query: {}", query);
+        return new GetTraceCall(storage, query, traceId);
+    }
+
+    // -------------------------------------------------------------------------------------------
+
+    // -------------------------------------------------------------------------------------------------------------
 
     static class GetTracesCall extends RawSplunkSearchCall<List<Span>> {
 
@@ -89,6 +131,7 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         }
 
         @Override List<List<Span>> process(ResultsReaderXml results) {
+            LOG.debug("process: {}", results);
             List<List<Span>> traces = new ArrayList<>();
             for (Event event : results) {
                 String[] raws = event.get("_raw").split("\\n");
@@ -100,6 +143,7 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
                 }
                 traces.add(trace);
             }
+            LOG.debug("process: {}", traces);
             return traces;
         }
 
@@ -108,12 +152,8 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         }
     }
 
-    @Override public Call<List<Span>> getTrace(String traceId) {
-        final String query = "search * index=\"" + storage.indexName + "\" "
-                + "sourcetype=\"" + storage.sourceType + "\" "
-                + "traceid " + traceId;
-        return new GetTraceCall(storage, query, traceId);
-    }
+    // ---------------------------------------------------------------------------------------------------------------
+
 
     static class GetTraceCall extends SplunkSearchCall<Span> {
         final String traceId;
@@ -134,28 +174,9 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         }
     }
 
-    @Override public Call<List<String>> getServiceNames() {
-        final String query = "search * index=\"" + storage.indexName + "\" "
-                + "| table localEndpoint.serviceName "
-                + "| dedup localEndpoint.serviceName";
-        return new GetNamesCall(storage, query, "localEndpoint.serviceName");
-    }
+    // ------------------------------------------------------------------------------------------
 
-    @Override public Call<List<String>> getRemoteServiceNames(String serviceName) {
-        final String query = "search * index=\"" + storage.indexName + "\" "
-                + "localEndpoint " + serviceName + " "
-                + "| table remoteEndpoint.serviceName "
-                + "| dedup remoteEndpoint.serviceName";
-        return new GetNamesCall(storage, query, "remoteEndpoint.serviceName");
-    }
 
-    @Override public Call<List<String>> getSpanNames(String serviceName) {
-        final String query = "search * index=\"" + storage.indexName + "\" "
-                + "localEndpoint " + serviceName + " "
-                + "| table name "
-                + "| dedup name";
-        return new GetNamesCall(storage, query, "name");
-    }
 
     static class GetNamesCall extends SplunkSearchCall<String> {
         final String fieldName;
@@ -196,6 +217,8 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         abstract T parse(Event event);
     }
 
+    // ---------------------------------------------------------------------------------------------------------
+
     static abstract class RawSplunkSearchCall<T> extends Call.Base<List<T>> {
         final SplunkStorage storage;
         final Service splunk;
@@ -208,7 +231,7 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         }
 
         @Override protected List<T> doExecute() throws IOException {
-            try (InputStream is = splunk.oneshotSearch(query)) {
+            try (InputStream is =  splunk.oneshotSearch(query)) {
                 ResultsReaderXml xml = new ResultsReaderXml(is);
                 return process(xml);
             } catch (Exception e) {
@@ -218,6 +241,7 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         }
 
         @Override protected void doEnqueue(Callback<List<T>> callback) {
+            LOG.debug("doEnqueue {}",callback);
             try (InputStream is = splunk.oneshotSearch(query)) {
                 ResultsReaderXml xml = new ResultsReaderXml(is);
                 callback.onSuccess(process(xml));
@@ -230,35 +254,5 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         abstract List<T> process(ResultsReaderXml results);
     }
 
-    public static void main(String[] args) throws Exception {
-        SplunkStorage storage = SplunkStorage.newBuilder()
-                .host("localhost")
-                .username("admin")
-                .password("welcome1")
-                .build();
-        SpanStore spanStore = storage.spanStore();
-        List<Span> spans = spanStore.getTrace("000000000000000e").execute();
-        System.out.println(spans);
-        ServiceAndSpanNames spanServiceNames = storage.serviceAndSpanNames();
-        List<String> serviceNames = spanServiceNames.getServiceNames().execute();
-        System.out.println(serviceNames);
-        List<String> spanNames = spanServiceNames.getSpanNames("service1").execute();
-        System.out.println(spanNames);
-        List<String> remoteServiceNames = spanServiceNames.getRemoteServiceNames("service1").execute();
-        System.out.println(remoteServiceNames);
-        Map<String, String> tags = new HashMap<>();
-        tags.put("test", "value1");
-        List<List<Span>> result = spanStore.getTraces(QueryRequest.newBuilder()
-                .serviceName("service1")
-                .remoteServiceName("kafka")
-                .spanName("span1")
-                .maxDuration(1001L)
-                .minDuration(1L)
-                .annotationQuery(tags)
-                .limit(10)
-                .lookback(System.currentTimeMillis() - 1_000_000_000)
-                .endTs(System.currentTimeMillis())
-                .build()).execute();
-        System.out.println(result);
-    }
+    // -----------------------------------------------------------------------------------------------------------
 }

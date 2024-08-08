@@ -37,6 +37,12 @@
       <version>${spring-boot.version}</version>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-sdk</artifactId>
+      <version>1.38.0</version>
+    </dependency>
+
 
     <dependency>
       <groupId>${zipkin.groupId}</groupId>
@@ -56,13 +62,28 @@
       <version>${armeria.version}</version>
       <scope>test</scope>
     </dependency>
-    <!-- Stackdriver Trace read operations are only available in its v1 API. Use it to validate data was written during integration tests. -->
+
     <dependency>
-      <groupId>org.awaitility</groupId>
-      <artifactId>awaitility</artifactId>
-      <version>${awaitility.version}</version>
-      <scope>test</scope>
+      <groupId>com.linecorp.armeria</groupId>
+      <artifactId>armeria-spring-boot3-autoconfigure</artifactId>
+      <version>${armeria.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.linecorp.armeria</groupId>
+          <artifactId>armeria-logback</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>javax.validation</groupId>
+          <artifactId>validation-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
+    <dependency>
+      <groupId>com.linecorp.armeria</groupId>
+      <artifactId>armeria-brave6</artifactId>
+      <version>${armeria.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-test</artifactId>

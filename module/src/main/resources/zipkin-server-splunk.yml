@@ -6,10 +6,12 @@ zipkin:
   storage:
     splunk:
       scheme: ${SPLUNK_SCHEME:https}
-      host: ${SPLUNK_HOST:localhost}
+      host: ${SPLUNK_HOST:splunk}
       port: ${SPLUNK_PORT:8089}
-      username: ${SPLUNK_USERNAME:user}
-      password: ${SPLUNK_PASSWORD:changeme}
+      username: ${SPLUNK_USERNAME:admin}
+      password: ${SPLUNK_PASSWORD:splunk123}
+      token: ${SPLUNK_TOKEN:_}
       index_name: ${SPLUNK_INDEX_NAME:zipkin}
       source_type: ${SPLUNK_SOURCE_TYPE:span}
-      source: ${SPLUNK_SOURCE_TYPE:zipkin-server}
+      source: ${SPLUNK_SOURCE:zipkin-server}
+      data_model: ${CONSUMER_DATA_MODEL:otel}

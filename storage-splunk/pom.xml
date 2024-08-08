@@ -66,6 +66,12 @@
       <version>${armeria.version}</version>
       <scope>test</scope>
     </dependency>
+      <dependency>
+          <groupId>io.opentelemetry</groupId>
+          <artifactId>opentelemetry-api</artifactId>
+          <version>1.38.0</version>
+          <scope>compile</scope>
+      </dependency>
 
   </dependencies>
 
