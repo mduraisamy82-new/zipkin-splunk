@@ -16,6 +16,7 @@ import zipkin2.storage.ServiceAndSpanNames;
 import zipkin2.storage.SpanConsumer;
 import zipkin2.storage.SpanStore;
 import zipkin2.storage.StorageComponent;
+import zipkin2.storage.splunk.internal.LoginForm;
 
 public class SplunkStorage extends StorageComponent {
 
@@ -92,6 +93,14 @@ public class SplunkStorage extends StorageComponent {
             }
         }
         return splunk;
+    }
+
+    public Service login(LoginForm loginForm){
+        serviceArgs.setUsername(loginForm.getUsername());
+        serviceArgs.setPassword(loginForm.getPassword());
+        Service svc =  Service.connect(serviceArgs);
+        System.out.println(svc.getToken());
+        return svc;
     }
 
     public static class Builder extends StorageComponent.Builder {
