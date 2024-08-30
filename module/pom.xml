@@ -38,6 +38,7 @@
       <version>${spring-boot.version}</version>
       <scope>provided</scope>
     </dependency>
+
     <dependency>
       <groupId>io.opentelemetry</groupId>
       <artifactId>opentelemetry-sdk</artifactId>
@@ -46,23 +47,18 @@
 
 
     <dependency>
-      <groupId>${zipkin.groupId}</groupId>
-      <artifactId>zipkin-tests</artifactId>
-      <version>${zipkin.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>${armeria.groupId}</groupId>
       <artifactId>armeria-junit5</artifactId>
       <version>${armeria.version}</version>
       <scope>test</scope>
     </dependency>
+
     <dependency>
       <groupId>${armeria.groupId}</groupId>
       <artifactId>armeria-grpc</artifactId>
       <version>${armeria.version}</version>
-      <scope>test</scope>
     </dependency>
+
 
     <dependency>
       <groupId>com.linecorp.armeria</groupId>
@@ -79,10 +75,12 @@
         </exclusion>
       </exclusions>
     </dependency>
+
     <dependency>
-      <groupId>com.linecorp.armeria</groupId>
-      <artifactId>armeria-brave6</artifactId>
-      <version>${armeria.version}</version>
+      <groupId>${zipkin.groupId}</groupId>
+      <artifactId>zipkin-tests</artifactId>
+      <version>${zipkin.version}</version>
+      <scope>test</scope>
     </dependency>
 
     <dependency>
@@ -113,7 +111,7 @@
           <classifier>module</classifier>
           <!-- https://github.com/spring-projects/spring-boot/issues/3426 transitive exclude doesn't work -->
           <excludeGroupIds>
-            ${zipkin.groupId},org.springframework.boot,org.springframework,com.fasterxml.jackson.core,com.google.auto.value,org.reactivestreams,com.google.code.findbugs,javax.annotation,org.slf4j,io.netty,io.micrometer,org.hdrhistogram,org.latencyutils,${armeria.groupId},javax.inject,com.fasterxml.jackson.datatype,com.aayushatharva.brotli4j,commons-logging
+            ${zipkin.groupId},org.springframework.boot,org.springframework,com.fasterxml.jackson.core,com.google.auto.value,org.reactivestreams,com.google.code.findbugs,javax.annotation,org.slf4j,io.netty,io.micrometer,org.hdrhistogram,org.latencyutils,javax.inject,com.fasterxml.jackson.datatype,com.aayushatharva.brotli4j,commons-logging
           </excludeGroupIds>
           <excludes>
             <!-- zipkin-server depends on armeria and its grpc protocol-->
@@ -121,15 +119,15 @@
               <groupId>${armeria.groupId}</groupId>
               <artifactId>armeria</artifactId>
             </exclude>
-            <exclude>
+            <!--<exclude>
               <groupId>${armeria.groupId}</groupId>
               <artifactId>armeria-grpc-protocol</artifactId>
-            </exclude>
+            </exclude>-->
             <!-- See https://github.com/line/armeria/issues/1679 -->
-            <exclude>
+            <!-- <exclude>
               <groupId>net.bytebuddy</groupId>
               <artifactId>byte-buddy</artifactId>
-            </exclude>
+            </exclude>-->
           </excludes>
         </configuration>
         <dependencies>

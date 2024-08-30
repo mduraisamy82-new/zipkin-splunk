@@ -4,10 +4,7 @@
  */
 package zipkin2.storage.splunk;
 
-import com.splunk.Args;
-import com.splunk.SSLSecurityProtocol;
-import com.splunk.Service;
-import com.splunk.ServiceArgs;
+import com.splunk.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import zipkin2.codec.SpanBytesDecoder;
@@ -17,6 +14,7 @@ import zipkin2.storage.SpanConsumer;
 import zipkin2.storage.SpanStore;
 import zipkin2.storage.StorageComponent;
 import zipkin2.storage.splunk.internal.LoginForm;
+import zipkin2.storage.splunk.internal.SplunkExportTrace;
 
 public class SplunkStorage extends StorageComponent {
 
@@ -40,13 +38,12 @@ public class SplunkStorage extends StorageComponent {
         this.serviceArgs = new ServiceArgs();
         this.serviceArgs.setHost(builder.host);
         this.serviceArgs.setPort(builder.port);
-        this.serviceArgs.setUsername(builder.username);
-        this.serviceArgs.setPassword(builder.password);
         if(builder.token !=null && !builder.token.isEmpty() && !builder.token.equalsIgnoreCase("_")) {
             this.serviceArgs.setToken("Splunk " + builder.token);
         }
         this.serviceArgs.setScheme(builder.scheme);
         this.serviceArgs.setSSLSecurityProtocol(SSLSecurityProtocol.TLSv1_2);
+
         this.indexName = builder.indexName;
         this.indexArgs = new Args();
         this.indexArgs.add("source", builder.source);
@@ -66,8 +63,14 @@ public class SplunkStorage extends StorageComponent {
         }
     }
 
+
+
     @Override public SpanStore spanStore() {
         return spanStore;
+    }
+
+    public SpanStore spanStore(String token) {
+       return  new SplunkOtelSpanStore(this,0L,token);
     }
 
     @Override public SpanConsumer spanConsumer() {
@@ -78,28 +81,41 @@ public class SplunkStorage extends StorageComponent {
         return  serviceAndSpanNames;
     }
 
+    public ServiceAndSpanNames serviceAndSpanNames(String token) {
+        return  new SplunkOtelSpanStore(this,0L,token);
+    }
+
     Service splunk() {
         if (splunk == null) {
             synchronized (this) {
                 if (splunk == null) {
-                    if(serviceArgs.token !=null ) {
-                        LOG.debug("Connected using Token");
-                        this.splunk = new Service(serviceArgs);
-                    }else{
-                        LOG.debug("Connected using UserName & Password");
-                        this.splunk = Service.connect(serviceArgs);
-                    }
+                    LOG.debug("Connected using Token");
+                    this.splunk = new Service(serviceArgs);
                 }
             }
         }
         return splunk;
     }
 
+    public SplunkExportTrace getSplunkTraceExporter(){
+        Index index= splunk.getIndexes().get(indexName);
+        return new SplunkExportTrace(index,serviceArgs);
+    }
+
+    public Service getSplunkService(String token){
+        ServiceArgs serviceArgsForToken = new ServiceArgs();
+        serviceArgsForToken.setHost(this.serviceArgs.host);
+        serviceArgsForToken.setPort(this.serviceArgs.port);
+        serviceArgsForToken.setToken(token);
+        serviceArgsForToken.setScheme(this.serviceArgs.scheme);
+        serviceArgsForToken.setSSLSecurityProtocol(SSLSecurityProtocol.TLSv1_2);
+        return new Service(serviceArgsForToken);
+    }
+
     public Service login(LoginForm loginForm){
         serviceArgs.setUsername(loginForm.getUsername());
         serviceArgs.setPassword(loginForm.getPassword());
         Service svc =  Service.connect(serviceArgs);
-        System.out.println(svc.getToken());
         return svc;
     }
 
@@ -108,8 +124,6 @@ public class SplunkStorage extends StorageComponent {
         String scheme = "https";
         String host = "localhost";
         int port = 8089;
-        String username;
-        String password;
         String token;
         String indexName = "zipkin";
         String source = "zipkin-server";
@@ -147,17 +161,6 @@ public class SplunkStorage extends StorageComponent {
             return this;
         }
 
-        public Builder username(String username) {
-            if (username == null) throw new NullPointerException("username == null");
-            this.username = username;
-            return this;
-        }
-
-        public Builder password(String password) {
-            if (password == null) throw new NullPointerException("password == null");
-            this.password = password;
-            return this;
-        }
 
         public Builder scheme(String scheme) {
             if (scheme == null) throw new NullPointerException("scheme == null");

@@ -6,6 +6,7 @@ package zipkin2.storage.splunk.internal;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.linecorp.armeria.common.*;
+import com.linecorp.armeria.common.multipart.MultipartFile;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.*;
 import com.splunk.Service;
@@ -24,6 +25,7 @@ import zipkin2.storage.splunk.SplunkStorage;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static com.linecorp.armeria.common.HttpHeaderNames.CACHE_CONTROL;
@@ -58,6 +60,22 @@ public class ZipkinSplunkQueryApiV2{
         this.autocompleteKeys = autocompleteKeys;
     }
 
+    @Post("/login")
+    @Blocking
+    public HttpResponse loginForm(
+            @Param("username") String username, @Param("password") String password ) throws IOException {
+        LoginForm loginForm = new LoginForm();
+        loginForm.setUsername(username);
+        loginForm.setPassword(password);
+        Service svc = storage.login(loginForm);
+        System.out.println(svc.getToken());
+        CookieBuilder sptokenCookieBuilder = Cookie.secureBuilder("sptoken",java.net.URLEncoder.encode(svc.getToken(),StandardCharsets.UTF_8)).maxAge(600);
+        return HttpResponse.builder().
+                status(HttpStatus.FOUND).
+                header("Location", "/trace").
+                cookie(sptokenCookieBuilder.build()).build();
+    }
+
     @Post("/api/v2/login")
     @Blocking
     public HttpResponse login(
@@ -70,7 +88,8 @@ public class ZipkinSplunkQueryApiV2{
     @Blocking
     public AggregatedHttpResponse getDependencies(
             @Param("endTs") long endTs,
-            @Param("lookback") Optional<Long> lookback) throws IOException {
+            @Param("lookback") Optional<Long> lookback,Cookies cookies) throws IOException {
+        Cookie splunkCookie = getSplunkCookie(cookies);
         Call<List<DependencyLink>> call =
                 storage.spanStore().getDependencies(endTs, lookback.orElse(defaultLookback));
         return jsonResponse(DependencyLinkBytesEncoder.JSON_V1.encodeList(call.execute()));
@@ -78,8 +97,9 @@ public class ZipkinSplunkQueryApiV2{
 
     @Get("/api/v2/services")
     @Blocking
-    public AggregatedHttpResponse getServiceNames(ServiceRequestContext ctx) throws IOException {
-        List<String> serviceNames = storage.serviceAndSpanNames().getServiceNames().execute();
+    public AggregatedHttpResponse getServiceNames(ServiceRequestContext ctx ,Cookies cookies) throws IOException {
+        Cookie splunkCookie = getSplunkCookie(cookies);
+        List<String> serviceNames = storage.serviceAndSpanNames(java.net.URLDecoder.decode(splunkCookie.value(), StandardCharsets.UTF_8)).getServiceNames().execute();
         serviceCount = serviceNames.size();
         return maybeCacheNames(serviceCount > 3, serviceNames, ctx.alloc());
     }
@@ -87,19 +107,21 @@ public class ZipkinSplunkQueryApiV2{
     @Get("/api/v2/spans")
     @Blocking
     public AggregatedHttpResponse getSpanNames(
-            @Param("serviceName") String serviceName, ServiceRequestContext ctx)
+            @Param("serviceName") String serviceName, ServiceRequestContext ctx,Cookies cookies)
             throws IOException {
-        List<String> spanNames = storage.serviceAndSpanNames().getSpanNames(serviceName).execute();
+        Cookie splunkCookie = getSplunkCookie(cookies);
+        List<String> spanNames = storage.serviceAndSpanNames(java.net.URLDecoder.decode(splunkCookie.value(), StandardCharsets.UTF_8)).getSpanNames(serviceName).execute();
         return maybeCacheNames(serviceCount > 3, spanNames, ctx.alloc());
     }
 
     @Get("/api/v2/remoteServices")
     @Blocking
     public AggregatedHttpResponse getRemoteServiceNames(
-            @Param("serviceName") String serviceName, ServiceRequestContext ctx)
+            @Param("serviceName") String serviceName, ServiceRequestContext ctx,Cookies cookies)
             throws IOException {
+        Cookie splunkCookie = getSplunkCookie(cookies);
         List<String> remoteServiceNames =
-                storage.serviceAndSpanNames().getRemoteServiceNames(serviceName).execute();
+                storage.serviceAndSpanNames(java.net.URLDecoder.decode(splunkCookie.value(), StandardCharsets.UTF_8)).getRemoteServiceNames(serviceName).execute();
         return maybeCacheNames(serviceCount > 3, remoteServiceNames, ctx.alloc());
     }
 
@@ -114,8 +136,10 @@ public class ZipkinSplunkQueryApiV2{
             @Param("maxDuration") Optional<Long> maxDuration,
             @Param("endTs") Optional<Long> endTs,
             @Param("lookback") Optional<Long> lookback,
-            @Default("10") @Param("limit") int limit)
+            @Default("10") @Param("limit") int limit,
+            Cookies cookies)
             throws IOException {
+        Cookie splunkCookie = getSplunkCookie(cookies);
         QueryRequest queryRequest =
                 QueryRequest.newBuilder()
                         .serviceName(serviceName.orElse(null))
@@ -129,13 +153,14 @@ public class ZipkinSplunkQueryApiV2{
                         .limit(limit)
                         .build();
 
-        List<List<Span>> traces = storage.spanStore().getTraces(queryRequest).execute();
+        List<List<Span>> traces = storage.spanStore(java.net.URLDecoder.decode(splunkCookie.value(), StandardCharsets.UTF_8)).getTraces(queryRequest).execute();
         return jsonResponse(writeTraces(SpanBytesEncoder.JSON_V2, traces));
     }
 
     @Get("/api/v2/trace/{traceId}")
     @Blocking
-    public AggregatedHttpResponse getTrace(@Param("traceId") String traceId) throws IOException {
+    public AggregatedHttpResponse getTrace(@Param("traceId") String traceId ,Cookies cookies) throws IOException {
+        Cookie splunkCookie = getSplunkCookie(cookies);
         traceId = traceId != null ? traceId.trim() : null;
         traceId = Span.normalizeTraceId(traceId);
         List<Span> trace = storage.traces().getTrace(traceId).execute();
@@ -147,7 +172,8 @@ public class ZipkinSplunkQueryApiV2{
 
     @Get("/api/v2/traceMany")
     @Blocking
-    public AggregatedHttpResponse getTraces(@Param("traceIds") String traceIds) throws IOException {
+    public AggregatedHttpResponse getTraces(@Param("traceIds") String traceIds,Cookies cookies) throws IOException {
+        Cookie splunkCookie = getSplunkCookie(cookies);
         if (traceIds.isEmpty()) {
             return AggregatedHttpResponse.of(BAD_REQUEST, ANY_TEXT_TYPE, "traceIds parameter is empty");
         }
@@ -175,16 +201,22 @@ public class ZipkinSplunkQueryApiV2{
 
     @Get("/api/v2/autocompleteKeys")
     @Blocking
-    public AggregatedHttpResponse getAutocompleteKeys(ServiceRequestContext ctx) {
+    public AggregatedHttpResponse getAutocompleteKeys(ServiceRequestContext ctx,Cookies cookies) {
+        Cookie splunkCookie = getSplunkCookie(cookies);
         return maybeCacheNames(true, autocompleteKeys, ctx.alloc());
     }
 
     @Get("/api/v2/autocompleteValues")
     @Blocking
     public AggregatedHttpResponse getAutocompleteValues(
-            @Param("key") String key, ServiceRequestContext ctx) throws IOException {
+            @Param("key") String key, ServiceRequestContext ctx,Cookies cookies) throws IOException {
+        Cookie splunkCookie = getSplunkCookie(cookies);
         List<String> values = storage.autocompleteTags().getValues(key).execute();
         return maybeCacheNames(values.size() > 3, values, ctx.alloc());
+    }
+
+    Cookie getSplunkCookie(Cookies cookies){
+        return cookies.stream().filter(cookie -> cookie.name().equalsIgnoreCase("sptoken")).findFirst().orElse(null);
     }
 
     /**

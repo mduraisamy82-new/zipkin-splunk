@@ -130,6 +130,10 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
             super(storage, query);
         }
 
+        GetTracesCall(Service splunkService, String query) {
+            super(splunkService, query);
+        }
+
         @Override List<List<Span>> process(ResultsReaderXml results) {
             LOG.debug("process: {}", results);
             List<List<Span>> traces = new ArrayList<>();
@@ -148,7 +152,7 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         }
 
         @Override public Call<List<List<Span>>> clone() {
-            return new GetTracesCall(storage, query);
+            return new GetTracesCall(splunk, query);
         }
     }
 
@@ -163,6 +167,11 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
             this.traceId = traceId;
         }
 
+        GetTraceCall(Service SplunkService, String query, String traceId) {
+            super(SplunkService, query);
+            this.traceId = traceId;
+        }
+
         @Override Span parse(Event event) {
             final String raw = event.get("_raw");
             final byte[] bytes = raw.getBytes(UTF_8);
@@ -170,7 +179,7 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
         }
 
         @Override public Call<List<Span>> clone() {
-            return new GetTraceCall(storage, query, traceId);
+            return new GetTraceCall(splunk, query, traceId);
         }
     }
 
@@ -186,23 +195,36 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
             this.fieldName = fieldName;
         }
 
+        GetNamesCall(Service SplunkService, String query, String fieldName) {
+            super(SplunkService, query);
+            this.fieldName = fieldName;
+        }
+
         @Override String parse(Event event) {
             return event.get(fieldName);
         }
 
         @Override public Call<List<String>> clone() {
-            return new GetNamesCall(storage, query, fieldName);
+            return new GetNamesCall(splunk, query, fieldName);
         }
     }
+
+    // ---------------------------------------------------------------------------------------------------------
 
     @Override public Call<List<DependencyLink>> getDependencies(long start, long end) {
         return null;
     }
 
+    // ---------------------------------------------------------------------------------------------------------
+
     static abstract class SplunkSearchCall<T> extends RawSplunkSearchCall<T> {
 
         SplunkSearchCall(SplunkStorage storage, String query) {
             super(storage, query);
+        }
+
+        SplunkSearchCall(Service SplunkService, String query) {
+            super(SplunkService, query);
         }
 
         @Override List<T> process(ResultsReaderXml results) {
@@ -229,6 +251,13 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
             this.splunk = storage.splunk();
             this.query = query;
         }
+
+        RawSplunkSearchCall(Service SplunkService, String query) {
+            this.storage = null;
+            this.splunk = SplunkService;
+            this.query = query;
+        }
+
 
         @Override protected List<T> doExecute() throws IOException {
             try (InputStream is =  splunk.oneshotSearch(query)) {

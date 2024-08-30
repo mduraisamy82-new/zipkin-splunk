@@ -16,6 +16,7 @@
   <modules>
     <module>module</module>
     <module>storage-splunk</module>
+    <module>telemetry-grpc</module>
   </modules>
 
   <distributionManagement>
@@ -126,10 +127,8 @@
     <nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
   </properties>
 
-  <name>Zipkin Google Cloud Platform (Parent)</name>
-  <description>Zipkin Google Cloud Platform (Parent)</description>
-  <url>https://github.com/openzipkin/zipkin-gcp</url>
-  <inceptionYear>2016</inceptionYear>
+  <name>Zipkin plunk (Parent)</name>
+  <description>Zipkin plunk (Parent)</description>
 
   <organization>
     <name>OpenZipkin</name>
@@ -466,6 +465,7 @@
         <directory>src/main/resources</directory>
         <includes>
           <include>*.yml</include>
+          <include>/static/*</include>
         </includes>
       </resource>
     </resources>

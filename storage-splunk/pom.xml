@@ -6,12 +6,13 @@
 
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
   <parent>
     <artifactId>zipkin-splunk-parent</artifactId>
     <groupId>io.zipkin.splunk</groupId>
     <version>2.2.5-SNAPSHOT</version>
   </parent>
-  <modelVersion>4.0.0</modelVersion>
 
   <artifactId>zipkin-storage-splunk</artifactId>
   <name>Zipkin Storage: Splunk Trace</name>
@@ -27,6 +28,12 @@
   <dependencies>
 
     <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>telemetry-grpc</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
       <groupId>com.splunk</groupId>
       <artifactId>splunk</artifactId>
       <version>${splunk-sdk.version}</version>
@@ -39,13 +46,6 @@
     </dependency>
 
     <dependency>
-      <groupId>${armeria.groupId}</groupId>
-      <artifactId>armeria-grpc-protocol</artifactId>
-      <version>${armeria.version}</version>
-    </dependency>
-
-
-    <dependency>
       <groupId>${zipkin.groupId}</groupId>
       <artifactId>zipkin-tests</artifactId>
       <version>${zipkin.version}</version>
@@ -54,23 +54,29 @@
 
     <dependency>
       <groupId>${armeria.groupId}</groupId>
-      <artifactId>armeria-grpc</artifactId>
+      <artifactId>armeria-junit5</artifactId>
       <version>${armeria.version}</version>
-      <scope>test</scope>
+      <scope>provided</scope>
     </dependency>
 
     <dependency>
-      <groupId>${armeria.groupId}</groupId>
-      <artifactId>armeria-junit5</artifactId>
-      <version>${armeria.version}</version>
-      <scope>test</scope>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java-util</artifactId>
+      <version>3.25.1</version>
     </dependency>
-      <dependency>
-          <groupId>io.opentelemetry</groupId>
-          <artifactId>opentelemetry-api</artifactId>
-          <version>1.38.0</version>
-          <scope>compile</scope>
-      </dependency>
+
+    <dependency>
+        <groupId>io.opentelemetry</groupId>
+        <artifactId>opentelemetry-api</artifactId>
+        <version>1.38.0</version>
+        <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-otlp</artifactId>
+      <version>1.41.0</version>
+    </dependency>
 
   </dependencies>
 

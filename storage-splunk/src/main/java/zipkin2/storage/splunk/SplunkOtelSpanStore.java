@@ -6,6 +6,7 @@ package zipkin2.storage.splunk;
 
 import com.splunk.Event;
 import com.splunk.ResultsReaderXml;
+import com.splunk.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import zipkin2.Call;
@@ -34,9 +35,16 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
 
     private Call<List<String>> remoteServiceNames;
 
-    SplunkOtelSpanStore(SplunkStorage storage, long defaultLookback) {
+    final String splunkToken;
+
+    SplunkOtelSpanStore(SplunkStorage storage, long defaultLookback, String splunkToken) {
         super(storage);
         this.defaultLookback = defaultLookback;
+        this.splunkToken = splunkToken;
+    }
+
+    SplunkOtelSpanStore(SplunkStorage storage, long defaultLookback) {
+        this(storage,defaultLookback,null);
     }
 
     // To test
@@ -84,7 +92,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         queryBuilder.append(endQuery);
         final String query = queryBuilder.toString();
         LOG.debug("getTraces query: {}", query);
-        return new GetTracesCallForOtel(storage,query);
+        return new GetTracesCall(storage.getSplunkService(splunkToken),query);
     }
 
     @Override public Call<List<Span>> getTrace(String traceId) {
@@ -93,7 +101,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
                 + "sourcetype=\"" + storage.sourceType + "\" "
                 + "scopeSpans{}.spans{}.traceId = " + traceId;
         LOG.debug("getTrace query: {}", query);
-        return new SplunkOtelSpanStore.GetTraceCall(storage, query, traceId);
+        return new GetTraceCall(storage.getSplunkService(splunkToken), query, traceId);
     }
 
 
@@ -101,7 +109,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         LOG.debug("getServiceNames {}",this.serviceNames);
         final String query = getServiceNamesQueryBuilder();
         LOG.debug("getServiceNames query: {}", query);
-        return new GetNamesCall(storage, query, "serviceName");
+        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "serviceName");
     }
 
     // To change
@@ -136,7 +144,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
                 + "| table serviceName "
                 + "| dedup serviceName";
         LOG.debug("getRemoteServiceNames query {}",query);
-        return new GetNamesCall(storage, query, "serviceName");
+        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "serviceName");
     }
 
     // All good
@@ -148,16 +156,17 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
                 + "| table scopeSpans{}.spans{}.name "
                 + "| dedup scopeSpans{}.spans{}.name ";
         LOG.debug("getSpanNames query {}",query);
-        return new GetNamesCall(storage, query, "scopeSpans{}.spans{}.name");
+        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "scopeSpans{}.spans{}.name");
     }
 
-    static class GetTracesCallForOtel extends RawSplunkSearchCall<List<Span>> {
+    static class GetTracesCall extends SplunkSpanStore.GetTracesCall {
 
-        GetTracesCallForOtel(SplunkStorage storage, String query) {
-            super(storage, query);
+        GetTracesCall(Service splunkService, String query) {
+            super(splunkService, query);
         }
 
-        @Override List<List<Span>> process(ResultsReaderXml results) {
+        @Override
+        List<List<Span>> process(ResultsReaderXml results) {
             LOG.debug("process: {}", results);
             List<List<Span>> traces = new ArrayList<>();
             for (Event event : results) {
@@ -179,15 +188,16 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         }
 
         @Override public Call<List<List<Span>>> clone() {
-            return new SplunkOtelSpanStore.GetTracesCallForOtel(storage, query);
+            return new SplunkOtelSpanStore.GetTracesCall(splunk, query);
         }
     }
 
     static class GetTraceCall extends SplunkSearchCall<Span> {
         final String traceId;
 
-        GetTraceCall(SplunkStorage storage, String query, String traceId) {
-            super(storage, query);
+
+        GetTraceCall(Service SplunkService, String query, String traceId) {
+            super(SplunkService, query);
             this.traceId = traceId;
         }
 
@@ -198,7 +208,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         }
 
         @Override public Call<List<Span>> clone() {
-            return new SplunkOtelSpanStore.GetTraceCall(storage, query, traceId);
+            return new SplunkOtelSpanStore.GetTraceCall(splunk, query, traceId);
         }
     }
 
@@ -206,8 +216,9 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         final long start;
         final long end;
 
-        GetDependencyLinkCall(SplunkStorage storage, String query, long start ,long end) {
-            super(storage, query);
+
+        GetDependencyLinkCall(Service SplunkService, String query, long start ,long end) {
+            super(SplunkService, query);
             this.start = start;
             this.end = end;
         }
@@ -231,7 +242,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
 
         @Override
         public Call<List<DependencyLink>> clone() {
-            return new GetDependencyLinkCall(storage,query,start,end);
+            return new GetDependencyLinkCall(splunk,query,start,end);
         }
     }
 
@@ -298,7 +309,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         queryBuilder.append("stats count as callcount by parent child scopeSpans{}.spans{}.kind");
         final String query = queryBuilder.toString();
         LOG.debug("getTraces query: {}", query);
-        return new GetDependencyLinkCall(storage,query,start,end);
+        return new GetDependencyLinkCall(storage.getSplunkService(splunkToken),query,start,end);
     }
 
 }
