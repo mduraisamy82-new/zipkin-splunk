@@ -22,7 +22,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import zipkin2.storage.StorageComponent;
 import zipkin2.storage.splunk.SplunkStorage;
-import zipkin2.storage.splunk.internal.SplunkExportTrace;
 import zipkin2.storage.splunk.internal.ZipkinSplunkQueryApiV2;
 
 import java.time.Duration;
@@ -76,7 +75,7 @@ public class ZipkinSplunkStorageModule {
     @ConditionalOnMissingBean
     ArmeriaServerConfigurator zipkinServerConfigurator(Optional<ZipkinSplunkQueryApiV2> zipkinSplunkQueryApiV2,
                                                        @Value("${zipkin.query.timeout:11s}") Duration queryTimeout,
-                                                       HttpService indexService) {
+                                                       HttpService indexService ,SplunkStorage storage) {
         ServerCacheControl maxAgeYear =
                 ServerCacheControl.builder().maxAgeSeconds(TimeUnit.DAYS.toSeconds(365)).build();
 
@@ -131,7 +130,7 @@ public class ZipkinSplunkStorageModule {
 
                 //Grpc
                 sb.service(GrpcService.builder()
-                        .addService(new SplunkExportTrace(null,null))
+                        .addService(storage.getSplunkTraceExporter()).addService(storage.getSplunkMetricCollector())
                         .build());
 
             });

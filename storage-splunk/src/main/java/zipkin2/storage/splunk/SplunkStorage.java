@@ -14,7 +14,6 @@ import zipkin2.storage.SpanConsumer;
 import zipkin2.storage.SpanStore;
 import zipkin2.storage.StorageComponent;
 import zipkin2.storage.splunk.internal.LoginForm;
-import zipkin2.storage.splunk.internal.SplunkExportTrace;
 
 public class SplunkStorage extends StorageComponent {
 
@@ -43,11 +42,12 @@ public class SplunkStorage extends StorageComponent {
         }
         this.serviceArgs.setScheme(builder.scheme);
         this.serviceArgs.setSSLSecurityProtocol(SSLSecurityProtocol.TLSv1_2);
-
         this.indexName = builder.indexName;
+
         this.indexArgs = new Args();
         this.indexArgs.add("source", builder.source);
         this.indexArgs.add("sourcetype", builder.sourceType);
+
         this.sourceType = builder.sourceType;
         LOG.debug("dataModel: {}", builder.dataModel);
         if(builder.dataModel.equalsIgnoreCase("otel")){
@@ -97,9 +97,19 @@ public class SplunkStorage extends StorageComponent {
         return splunk;
     }
 
-    public SplunkExportTrace getSplunkTraceExporter(){
-        Index index= splunk.getIndexes().get(indexName);
-        return new SplunkExportTrace(index,serviceArgs);
+    public SplunkCollectorTrace getSplunkTraceExporter(){
+        Index index= splunk().getIndexes().get(indexName);
+        return new SplunkCollectorTrace(index,indexArgs);
+    }
+
+    public SplunkCollectorMetrics getSplunkMetricCollector(){
+        Index index= splunk().getIndexes().get(indexName);
+
+        Args indexArgs = new Args();
+        indexArgs.add("source", this.indexArgs.get("source"));
+        indexArgs.add("sourcetype", "mts");
+
+        return new SplunkCollectorMetrics(index,indexArgs);
     }
 
     public Service getSplunkService(String token){

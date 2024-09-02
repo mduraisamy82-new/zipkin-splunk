@@ -49,6 +49,7 @@ public class SplunkSpanConsumer implements SpanConsumer {
         }
 
         @Override protected Void doExecute() throws IOException {
+            System.out.println("Inside doExecute");
             try (Socket socket = index.attach(indexArgs)) {
                 OutputStream os = socket.getOutputStream();
                 for (Span span : spans) {
@@ -63,12 +64,14 @@ public class SplunkSpanConsumer implements SpanConsumer {
         }
 
         @Override protected void doEnqueue(Callback<Void> callback) {
+            System.out.println("Inside doEnqueue");
             try (Socket socket = index.attach(indexArgs)) {
                 OutputStream os = socket.getOutputStream();
                 for (Span span : spans) {
                     os.write(ENCODER.encode(span));
                     os.write("\r\n".getBytes(UTF_8));
                 }
+                os.flush();
                 callback.onSuccess(null);
             } catch (Exception e) {
                 e.printStackTrace();
