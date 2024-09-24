@@ -21,6 +21,7 @@ WORKDIR /zipkin
 RUN curl -SL --insecure $ZIPKIN_REPO/io/zipkin/zipkin-server/$ZIPKIN_VERSION/zipkin-server-${ZIPKIN_VERSION}-exec.jar > zipkin.jar
 
 ADD module/target/zipkin-module-splunk-${SPLUNK_STORAGE_VERSION}-module.jar splunk.jar
+ADD module/target/zipkin-module-splunk-${SPLUNK_STORAGE_VERSION}-module	`.jar splunk2.jar
 
 EXPOSE 9410 9411
 

@@ -11,10 +11,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import zipkin2.Call;
 import zipkin2.DependencyLink;
+import zipkin2.Endpoint;
 import zipkin2.Span;
 import zipkin2.codec.BytesDecoder;
 import zipkin2.storage.QueryRequest;
 import zipkin2.storage.splunk.internal.OtelSpanBytesDecoder;
+import zipkin2.storage.splunk.internal.OtelSpanBytesDefaultDecoder;
 
 
 import java.util.ArrayList;
@@ -27,7 +29,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
 
     static final Logger LOG = LoggerFactory.getLogger(SplunkOtelSpanStore.class);
 
-    static final BytesDecoder<Span> DECODER = new OtelSpanBytesDecoder();
+    static final BytesDecoder<Span> DECODER = new OtelSpanBytesDefaultDecoder();
 
     private final long defaultLookback;
 
@@ -54,23 +56,23 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         String startQuery = "search * index=\"" + storage.indexName + "\" "
                 + " sourcetype=\"" + storage.sourceType + "\" "
                 + " earliest=-" + (request.lookback() / 1000) + ""
-               // + " latest=" + (request.endTs() / 1000) + ""
-                + " | transaction scopeSpans{}.spans{}.traceId | ";
-        String endQuery = " sort -scopeSpans{}.spans{}.startTimeUnixNano | head " + request.limit();
+                + " latest=" + (request.endTs() / 1000) + ""
+                + " | transaction trace_id | ";
+        String endQuery = " sort -start_time | fields _raw,service.name | head " + request.limit();
         StringBuilder queryBuilder = new StringBuilder(startQuery);
         if (request.serviceName() != null && !request.serviceName().equalsIgnoreCase("all")) {
-            queryBuilder.append(" search \"resource.attributes{}.value.stringValue\" = \"")
+            queryBuilder.append(" search \"service.name\" = \"")
                     .append(request.serviceName())
                     .append("\" | ");
         }
         if (request.spanName() != null && !request.spanName().equalsIgnoreCase("all")) {
-            queryBuilder.append(" search \"scopeSpans{}.spans{}.name\" = \"")
+            queryBuilder.append(" search \"name\" = \"")
                     .append(request.spanName())
                     .append("\" | ");
         }
         if (request.remoteServiceName() != null && !request.remoteServiceName()
                 .equalsIgnoreCase("all")) {
-            queryBuilder.append(" where \'remoteEndpoint.serviceName\' = \"")
+            queryBuilder.append(" where \'serviceName\' = \"")
                     .append(request.remoteServiceName())
                     .append("\" | ");
         }
@@ -109,7 +111,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         LOG.debug("getServiceNames {}",this.serviceNames);
         final String query = getServiceNamesQueryBuilder();
         LOG.debug("getServiceNames query: {}", query);
-        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "serviceName");
+        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "service.name");
     }
 
     // To change
@@ -126,11 +128,8 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
             query.append(defaultLookback/1000);
             query.append("s");
         }
-        query.append(" | spath path=resource.attributes{} output=attributesmv  ");
-        query.append(" | eval index = mvfind(attributesmv, \"service.name\")  ");
-        query.append(" | eval snamejson=mvindex(attributesmv,index) ");
-        query.append(" | spath path=value.stringValue input=snamejson output=serviceName");
-        query.append(" | fields serviceName | table serviceName | dedup serviceName");
+        query.append(" | table service.name ");
+        query.append(" | dedup service.name");
         return query.toString();
     }
 
@@ -178,12 +177,12 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
     @Override public Call<List<String>> getSpanNames(String serviceName) {
         LOG.debug("getSpanNames: {}",serviceName);
         final String query = "search * index=\"" + storage.indexName + "\" "
-                + " sourcetype=\"" + storage.sourceType + "\" "
-                + "resource.attributes{}.value.stringValue = " + serviceName + " "
-                + "| table scopeSpans{}.spans{}.name "
-                + "| dedup scopeSpans{}.spans{}.name ";
+                + "sourcetype=\"" + storage.sourceType + "\" "
+                + "service.name = " + serviceName + " "
+                + "| table name "
+                + "| dedup name ";
         LOG.debug("getSpanNames query {}",query);
-        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "scopeSpans{}.spans{}.name");
+        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "name");
     }
 
     @Override public Call<List<DependencyLink>> getDependencies(long start, long end) {
@@ -263,13 +262,18 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
             LOG.debug("process: {}", results);
             List<List<Span>> traces = new ArrayList<>();
             for (Event event : results) {
+                LOG.debug("Event {}",event);
                 String[] raws = event.get("_raw").split("\\n");
+                String serviceName = event.get("service.name");
                 try {
                     List<Span> trace = new ArrayList<>();
                     for (String raw : raws) {
                         byte[] bytes = raw.getBytes(UTF_8);
                         Span span = DECODER.decodeOne(bytes);
-                        trace.add(span);
+                        trace.add(span.toBuilder().localEndpoint(
+                                    Endpoint.newBuilder().serviceName(serviceName).build()).
+                                    build()
+                                );
                     }
                     traces.add(trace);
                 }catch(RuntimeException exception){

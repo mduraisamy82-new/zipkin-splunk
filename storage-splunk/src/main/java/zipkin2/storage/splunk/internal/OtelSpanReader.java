@@ -115,7 +115,7 @@ public class OtelSpanReader implements JsonCodec.JsonReaderAdapter<Span> {
                             if(nextName.equalsIgnoreCase("spanId")){
                                 builder.id(reader.nextString());
                             }else if(nextName.equalsIgnoreCase("traceId")){
-                                builder.traceId(reader.nextString());
+                               builder.traceId(reader.nextString());
                             }
                             else if(nextName.equalsIgnoreCase("parentSpanId")){
                                 builder.parentId(reader.nextString());
