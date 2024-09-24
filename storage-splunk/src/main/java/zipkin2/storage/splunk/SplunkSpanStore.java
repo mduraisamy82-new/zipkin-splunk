@@ -10,8 +10,6 @@ import com.splunk.Service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -260,13 +258,9 @@ public class SplunkSpanStore implements SpanStore, ServiceAndSpanNames {
 
 
         @Override protected List<T> doExecute() throws IOException {
-            try (InputStream is =  splunk.oneshotSearch(query)) {
-                ResultsReaderXml xml = new ResultsReaderXml(is);
-                return process(xml);
-            } catch (Exception e) {
-                e.printStackTrace();
-                return Collections.emptyList();
-            }
+            InputStream is =  splunk.oneshotSearch(query);
+            ResultsReaderXml xml = new ResultsReaderXml(is);
+            return process(xml);
         }
 
         @Override protected void doEnqueue(Callback<List<T>> callback) {

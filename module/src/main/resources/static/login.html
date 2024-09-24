@@ -2,19 +2,25 @@
 <html>
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta charset="utf-8" />
+        <link rel="icon" href="/track-orange.ico" />
+        <title>Trace</title>
         <style>
             html {
              height: 100%;
+             background-image: url("/track-orange.ico");
+             background-repeat: repeat;
+             position: relative;
+              background-size: 20px 20px;
              }
-
             .login-box {
               position: absolute;
               top: 50%;
               left: 50%;
-              width: 400px;
+              width: 500px;
               padding: 40px;
               transform: translate(-50%, -50%);
-              background: rgba(0,0,0,.5);
+              background: rgba(0,0,0,1);
               box-sizing: border-box;
               box-shadow: 0 15px 25px rgba(0,0,0,.6);
               border-radius: 10px;
@@ -62,15 +68,15 @@
             .login-box .user-box input:valid ~ label {
               top: -20px;
               left: 0;
-              color: #03e9f4;
-              font-size: 12px;
+              color: #FF5733;
+              font-size: 16px;
             }
 
             .login-box form a {
               position: relative;
               display: inline-block;
               padding: 10px 20px;
-              color: #03e9f4;
+              color: #FF5733;
               font-size: 16px;
               text-decoration: none;
               text-transform: uppercase;
@@ -79,14 +85,35 @@
               margin-top: 40px;
               letter-spacing: 4px
             }
+            .error-message {
+                flex: 0 0 100%;
+                margin-left: 30%;
+                color: red;
+                display:none;
+            }
         </style>
+        <script>
+            function intFunction() {
+              let params = (new URL(document.location)).searchParams;
+              let name = params.get('name');
+              document.getElementById('username').value = name;
+              let errormsg = params.get('errormsg');
+              if(errormsg !=null){
+                document.getElementById('errormsgdiv').style.display = 'block';
+                document.getElementById('errormsg').innerHTML = errormsg;
+              }
+            }
+        </script>
     </head>
-    <body>
+    <body onload="intFunction()">
         <div class="login-box">
+            <div id="errormsgdiv" class="error-message">
+                <span id="errormsg">  Login Failed . Try Again</span>
+            </div>
             <h2>Login</h2>
             <form action="/trace/login" method="post">
                 <div class="user-box">
-                    <input type="text" name="username" required="">
+                    <input type="text" id="username" name="username" required="">
                     <label>Username</label>
                 </div>
                 <div class="user-box">

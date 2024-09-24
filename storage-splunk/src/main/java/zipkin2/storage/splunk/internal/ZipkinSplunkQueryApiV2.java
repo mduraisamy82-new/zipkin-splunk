@@ -6,13 +6,14 @@ package zipkin2.storage.splunk.internal;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.linecorp.armeria.common.*;
-import com.linecorp.armeria.common.multipart.MultipartFile;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.*;
 import com.splunk.Service;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import zipkin2.Call;
 import zipkin2.DependencyLink;
 import zipkin2.Span;
@@ -34,6 +35,9 @@ import static com.linecorp.armeria.common.HttpStatus.NOT_FOUND;
 import static com.linecorp.armeria.common.MediaType.ANY_TEXT_TYPE;
 
 public class ZipkinSplunkQueryApiV2{
+
+    static final Logger LOG = LoggerFactory.getLogger(ZipkinSplunkQueryApiV2.class);
+
     final String storageType;
     final SplunkStorage storage; // don't cache spanStore here as it can cause the app to crash!
     final long defaultLookback;
@@ -67,13 +71,27 @@ public class ZipkinSplunkQueryApiV2{
         LoginForm loginForm = new LoginForm();
         loginForm.setUsername(username);
         loginForm.setPassword(password);
-        Service svc = storage.login(loginForm);
-        System.out.println(svc.getToken());
-        CookieBuilder sptokenCookieBuilder = Cookie.secureBuilder("sptoken",java.net.URLEncoder.encode(svc.getToken(),StandardCharsets.UTF_8)).maxAge(600);
-        return HttpResponse.builder().
-                status(HttpStatus.FOUND).
-                header("Location", "/trace").
-                cookie(sptokenCookieBuilder.build()).build();
+        try {
+            Service svc = storage.login(loginForm);
+            CookieBuilder sptokenCookieBuilder = Cookie.secureBuilder("sptoken",java.net.URLEncoder.encode(svc.getToken(),StandardCharsets.UTF_8)).maxAge(600);
+            return HttpResponse.builder().
+                    status(HttpStatus.FOUND).
+                    header("Location", "/trace").
+                    cookie(sptokenCookieBuilder.build()).build();
+        }catch(Exception e)
+        {
+            // Log error
+            LOG.error("Login Error",e);
+            StringBuilder queryStringbuilder = new StringBuilder("/login?");
+            queryStringbuilder.append("name=");
+            queryStringbuilder.append(username);
+            queryStringbuilder.append("&");
+            queryStringbuilder.append("errormsg=");
+            queryStringbuilder.append("Login Failed.Try Again.");
+            return HttpResponse.builder().
+                    status(HttpStatus.FOUND).
+                    header("Location", queryStringbuilder.toString()).build();
+        }
     }
 
     @Post("/api/v2/login")
@@ -91,7 +109,7 @@ public class ZipkinSplunkQueryApiV2{
             @Param("lookback") Optional<Long> lookback,Cookies cookies) throws IOException {
         Cookie splunkCookie = getSplunkCookie(cookies);
         Call<List<DependencyLink>> call =
-                storage.spanStore().getDependencies(endTs, lookback.orElse(defaultLookback));
+                storage.spanStore(java.net.URLDecoder.decode(splunkCookie.value(), StandardCharsets.UTF_8)).getDependencies(endTs, lookback.orElse(defaultLookback));
         return jsonResponse(DependencyLinkBytesEncoder.JSON_V1.encodeList(call.execute()));
     }
 

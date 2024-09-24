@@ -84,6 +84,7 @@ public class ZipkinSplunkStorageModule {
                 .build();
 
         HttpFile loginPage = HttpFile.of(getClass().getClassLoader(),"static/login.html");
+        HttpFile icon = HttpFile.of(getClass().getClassLoader(),"static/track-orange.ico");
         return sb -> {
 
             zipkinSplunkQueryApiV2.ifPresent(h -> {
@@ -127,11 +128,12 @@ public class ZipkinSplunkStorageModule {
 
                 //login file
                 sb.service("/login/", loginPage.asService());
+                sb.service("/track-orange.ico", icon.asService());
 
                 //Grpc
-                sb.service(GrpcService.builder()
+               /* sb.service(GrpcService.builder()
                         .addService(storage.getSplunkTraceExporter()).addService(storage.getSplunkMetricCollector())
-                        .build());
+                        .build());*/
 
             });
         };

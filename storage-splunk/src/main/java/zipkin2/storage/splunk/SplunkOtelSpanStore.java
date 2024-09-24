@@ -54,7 +54,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         String startQuery = "search * index=\"" + storage.indexName + "\" "
                 + " sourcetype=\"" + storage.sourceType + "\" "
                 + " earliest=-" + (request.lookback() / 1000) + ""
-                + " latest=" + (request.endTs() / 1000) + ""
+               // + " latest=" + (request.endTs() / 1000) + ""
                 + " | transaction scopeSpans{}.spans{}.traceId | ";
         String endQuery = " sort -scopeSpans{}.spans{}.startTimeUnixNano | head " + request.limit();
         StringBuilder queryBuilder = new StringBuilder(startQuery);
@@ -81,16 +81,16 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         }
         if (request.minDuration() != null) {
             queryBuilder.append(" where duration > ")
-                    .append(request.minDuration())
+                    .append((request.minDuration()/1000.0))
                     .append(" | ");
         }
         if (request.maxDuration() != null) {
             queryBuilder.append(" where duration < ")
-                    .append(request.maxDuration())
+                    .append((request.maxDuration()/1000.0))
                     .append(" | ");
         }
         queryBuilder.append(endQuery);
-        final String query = queryBuilder.toString();
+        final String query =  queryBuilder.toString();
         LOG.debug("getTraces query: {}", query);
         return new GetTracesCall(storage.getSplunkService(splunkToken),query);
     }
@@ -138,13 +138,40 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
 
     @Override public Call<List<String>> getRemoteServiceNames(String serviceName) {
         LOG.debug("getRemoteServiceNames");
-        final String query = "search * index=\"" + storage.indexName + "\" "
-                + " sourcetype=\"" + storage.sourceType + "\" "
-                + "| eval serviceName=mvindex('resource.attributes{}.value.stringValue', 10) "
-                + "| table serviceName "
-                + "| dedup serviceName";
-        LOG.debug("getRemoteServiceNames query {}",query);
-        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "serviceName");
+        final String query = getRemoteNamesQueryBuilder(serviceName);
+        LOG.debug("getRemoteServiceNames query: {}", query);
+        return new GetNamesCall(storage.getSplunkService(splunkToken), query, "remoteServiceName");
+    }
+
+    protected String getRemoteNamesQueryBuilder(String serviceName) {
+        StringBuilder query = new StringBuilder();
+        query.append("search * index=\"");
+        query.append(storage.indexName);
+        query.append("\" ");
+        query.append(" sourcetype=\"" );
+        query.append(storage.sourceType);
+        query.append("\" ");
+        if(defaultLookback >0 ) {
+            query.append("earliest = -");
+            query.append(defaultLookback/1000);
+            query.append("s");
+        }
+        query.append(" scopeSpans{}.spans{}.kind IN (3,4,5)");
+        query.append(" resource.attributes{}.value.stringValue = ");
+        query.append(serviceName);
+        query.append(" | spath path=scopeSpans{}.spans{}.attributes{} output=scopeSpansmv");
+        query.append(" | eval indexdb = mvfind(scopeSpansmv, \"db.name\")");
+        query.append(" | eval dbnamejson=mvindex(scopeSpansmv,indexdb)");
+        query.append(" | spath path=value.stringValue input=dbnamejson output=dbname");
+        query.append(" |eval indexurl = mvfind(scopeSpansmv, \"url.full\")");
+        query.append(" |eval urljson=mvindex(scopeSpansmv,indexurl)");
+        query.append(" |spath path=value.stringValue input=urljson output=url");
+        query.append(" |eval indexmsg = mvfind(scopeSpansmv, \"messaging.destination.name\")");
+        query.append(" |eval msgjson=mvindex(scopeSpansmv,indexmsg)");
+        query.append(" |spath path=value.stringValue input=msgjson output=msg");
+        query.append(" |eval remoteServiceName = coalesce(url,dbname,msg)");
+        query.append(" |fields remoteServiceName | table remoteServiceName | dedup remoteServiceName");
+        return query.toString();
     }
 
     // All good
@@ -157,6 +184,72 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
                 + "| dedup scopeSpans{}.spans{}.name ";
         LOG.debug("getSpanNames query {}",query);
         return new GetNamesCall(storage.getSplunkService(splunkToken), query, "scopeSpans{}.spans{}.name");
+    }
+
+    @Override public Call<List<DependencyLink>> getDependencies(long start, long end) {
+        LOG.debug("getDependencies: {} {}", start,end);
+        Character space = ' ';
+        Character pipe = '|';
+        StringBuilder queryBuilder = new StringBuilder("search * index=");
+        queryBuilder.append(storage.indexName);
+        queryBuilder.append(space);
+        queryBuilder.append("sourcetype=");
+        queryBuilder.append(storage.sourceType);
+        queryBuilder.append(space);
+        queryBuilder.append("earliest=-86400s");
+        queryBuilder.append(space);
+        queryBuilder.append("scopeSpans{}.spans{}.kind IN (3,4,5)");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("spath path=resource.attributes{} output=attributesmv");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("spath path=scopeSpans{}.spans{}.attributes{} output=scopeSpansmv");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval index = mvfind(attributesmv, \"service.name\")");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval snamejson=mvindex(attributesmv,index)");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("spath path=value.stringValue input=snamejson output=parent");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval indexdb = mvfind(scopeSpansmv, \"db.name\")");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval dbnamejson=mvindex(scopeSpansmv,indexdb)");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("spath path=value.stringValue input=dbnamejson output=dbname");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval indexurl = mvfind(scopeSpansmv, \"url.full\")");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval urljson=mvindex(scopeSpansmv,indexurl)");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("spath path=value.stringValue input=urljson output=url");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval indexmsg = mvfind(scopeSpansmv, \"messaging.destination.name\")");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval msgjson=mvindex(scopeSpansmv,indexmsg)");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("spath path=value.stringValue input=msgjson output=msg");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("eval child = coalesce(url,dbname,msg)");
+        queryBuilder.append(space);
+        queryBuilder.append(pipe);
+        queryBuilder.append("stats count as callcount by parent child scopeSpans{}.spans{}.kind");
+        final String query = queryBuilder.toString();
+        LOG.debug("Dependencies query: {}", query);
+        return new GetDependencyLinkCall(storage.getSplunkService(splunkToken),query,start,end);
     }
 
     static class GetTracesCall extends SplunkSpanStore.GetTracesCall {
@@ -226,6 +319,7 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
 
         @Override
         DependencyLink parse(Event event) {
+            LOG.debug("parse: {}", event);
             DependencyLink dependencyLink = null;
             if(event.get("scopeSpans{}.spans{}.kind").equalsIgnoreCase("5")){
                 dependencyLink = DependencyLink.newBuilder().child(event.get("parent")).
@@ -246,70 +340,6 @@ public class SplunkOtelSpanStore extends SplunkSpanStore{
         }
     }
 
-    @Override public Call<List<DependencyLink>> getDependencies(long start, long end) {
-        LOG.debug("getDependencies: {} {}", start,end);
-        Character space = ' ';
-        Character pipe = '|';
-        StringBuilder queryBuilder = new StringBuilder("search * index=");
-        queryBuilder.append(storage.indexName);
-        queryBuilder.append(space);
-        queryBuilder.append("sourcetype=");
-        queryBuilder.append(storage.sourceType);
-        queryBuilder.append(space);
-        queryBuilder.append("earliest=-86400s");
-        queryBuilder.append(space);
-        queryBuilder.append("scopeSpans{}.spans{}.kind IN (3,4,5)");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("spath path=resource.attributes{} output=attributesmv");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("spath path=scopeSpans{}.spans{}.attributes{} output=scopeSpansmv");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval index = mvfind(attributesmv, \"service.name\")");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval snamejson=mvindex(attributesmv,index)");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("spath path=value.stringValue input=snamejson output=parent");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval indexdb = mvfind(scopeSpansmv, \"db.name\")");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval dbnamejson=mvindex(scopeSpansmv,indexdb)");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("spath path=value.stringValue input=dbnamejson output=dbname");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval indexurl = mvfind(scopeSpansmv, \"url.full\")");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval urljson=mvindex(scopeSpansmv,indexurl)");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("spath path=value.stringValue input=urljson output=url");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval indexmsg = mvfind(scopeSpansmv, \"messaging.destination.name\")");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval msgjson=mvindex(scopeSpansmv,indexmsg)");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("spath path=value.stringValue input=msgjson output=msg");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("eval child = coalesce(url,dbname,msg)");
-        queryBuilder.append(space);
-        queryBuilder.append(pipe);
-        queryBuilder.append("stats count as callcount by parent child scopeSpans{}.spans{}.kind");
-        final String query = queryBuilder.toString();
-        LOG.debug("getTraces query: {}", query);
-        return new GetDependencyLinkCall(storage.getSplunkService(splunkToken),query,start,end);
-    }
+
 
 }
